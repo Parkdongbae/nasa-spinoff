@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NASA Spinoff 기사 검색</title>
+<style>
+:root{--bg:#0f2a24;--panel:#163a32;--line:#2c5a4f;--ink:#f1f6f3;--muted:#a9c4bb;--accent:#ffd36b;--chip:#ffe3a0;--hit:#ffd36b33}
+*{box-sizing:border-box;word-break:keep-all}
+body{margin:0;background:linear-gradient(160deg,#0f2a24,#123630 60%,#0d241f);color:var(--ink);font-family:"Pretendard","Noto Sans KR","Malgun Gothic",sans-serif;min-height:100vh}
+header{position:sticky;top:0;z-index:5;background:#0f2a24ee;backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:18px 24px 14px}
+h1{margin:0 0 12px;font-size:28px;letter-spacing:-.5px}
+h1 small{font-size:16px;color:var(--muted);font-weight:400;margin-left:10px}
+.bar{display:flex;gap:10px;flex-wrap:wrap}
+#q{flex:1 1 360px;font-size:24px;padding:14px 18px;border-radius:14px;border:2px solid var(--line);background:#0b201b;color:var(--ink);outline:none}
+#q:focus{border-color:var(--accent)}
+#rand{font-size:18px;font-weight:700;padding:12px 18px;border-radius:12px;border:2px solid var(--accent);background:var(--accent);color:#1b2b26;cursor:pointer}
+#rand:hover,#rand:focus{filter:brightness(1.08);outline:none}
+select{font-size:18px;padding:12px;border-radius:12px;border:2px solid var(--line);background:#0b201b;color:var(--ink)}
+.hint{margin-top:10px;color:var(--muted);font-size:16px}
+.hint button{font-size:15px;margin:4px 6px 0 0;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+main{padding:18px 24px 60px;max-width:1200px;margin:0 auto}
+#count{color:var(--muted);font-size:18px;margin:6px 0 14px}
+.card{display:block;text-decoration:none;color:inherit;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 20px;margin-bottom:12px;transition:border-color .15s,transform .15s}
+.card:hover,.card:focus{border-color:var(--accent);transform:translateY(-1px);outline:none}
+.meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.meta span{background:var(--chip);color:#1b2b26;border-radius:999px;padding:3px 10px;font-size:14px;font-weight:700}
+.meta span.rank{background:#2c5a4f;color:var(--ink)}
+#count b{color:var(--accent);font-weight:700}
+.meta span.ed{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:400}
+.t{font-size:23px;font-weight:700;margin:2px 0}
+.e{color:var(--muted);font-size:15px;margin-bottom:6px}
+.l,.sn{font-size:17px;line-height:1.6;color:#dfeae5}
+.sn{color:var(--muted);margin-top:6px}
+mark{background:var(--hit);color:var(--accent);border-radius:4px;padding:0 2px}
+.more{display:block;margin:10px auto;font-size:18px;padding:10px 24px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+.empty{color:var(--muted);font-size:20px;text-align:center;margin-top:60px;line-height:1.7}
+@media (max-width:640px){header,main{padding-left:16px;padding-right:16px}h1{font-size:22px}#q{font-size:20px}.t{font-size:20px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>NASA Spinoff 기사 검색 <small>1976–2026 · 10개 통합판</small></h1>
+  <div class="bar">
+    <input id="q" type="search" placeholder="검색어 (예: 태양열, 의료, 위성, Velcro)" autofocus>
+    <select id="ed"><option value="">모든 판본</option></select>
+    <select id="fld"><option value="">모든 분야</option></select>
+    <button id="rand" type="button" title="기사 핵심어 중 하나를 무작위로 골라 검색합니다">랜덤 검색</button>
+  </div>
+  <div class="hint">띄어 쓴 단어는 모두 들어간 기사만 찾습니다. 기사를 누르면 해당 판본의 그 슬라이드가 새 탭에 열립니다.<br>
+    <span id="examples"></span></div>
+</header>
+<main>
+  <div id="count"></div>
+  <div id="list"></div>
+</main>
+<script src="search_index.js"></script>
+<script>
+const IDX = window.SPINOFF_INDEX || [];
+const $ = s => document.querySelector(s);
+const q = $('#q'), ed = $('#ed'), fld = $('#fld'), list = $('#list'), count = $('#count');
+const PAGE = 50;
+let results = [], shown = 0;
+
+// lower-cased search text per article, built once
+IDX.forEach(a => {
+  a._t = (a.t + ' ' + a.e).toLowerCase();
+  a._k = (a.k || []).join(' ').toLowerCase();
+  a._l = (a.l + ' ' + a.u).toLowerCase();
+  a._m = (a.m || '').toLowerCase();
+});
+const editions = [...new Set(IDX.map(a => a.f))].sort();
+editions.forEach(f => ed.add(new Option(f.replace('NASA_Spinoff_', '').replace('_정리.html', '').replace('_', '–') + '년', f)));
+[...new Set(IDX.map(a => a.fld))].filter(Boolean).sort().forEach(x => fld.add(new Option(x, x)));
+['태양열', '의료', '위성', '소방', '로봇', '배터리', '농업', '단열'].forEach(w => {
+  const b = document.createElement('button'); b.textContent = w; b.onclick = () => { q.value = w; run(); };
+  $('#examples').appendChild(b);
+});
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c])); }
+function hl(s, terms) {
+  let h = esc(s);
+  terms.forEach(t => { if (t) h = h.replace(new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), m => '<mark>' + m + '</mark>'); });
+  return h;
+}
+function snippet(text, term) {
+  const i = text.toLowerCase().indexOf(term);
+  if (i < 0) return '';
+  const a = Math.max(0, i - 50), b = Math.min(text.length, i + term.length + 70);
+  return (a ? '… ' : '') + text.slice(a, b) + (b < text.length ? ' …' : '');
+}
+
+function run() {
+  const terms = q.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const fe = ed.value, ff = fld.value;
+  results = [];
+  if (terms.length || fe || ff) {
+    for (const a of IDX) {
+      if (fe && a.f !== fe) continue;
+      if (ff && a.fld !== ff) continue;
+      let score = 0, ok = true;
+      for (const t of terms) {
+        const s = (a._t.includes(t) ? 10 : 0) + (a._k.includes(t) ? 6 : 0) + (a._l.includes(t) ? 4 : 0) + (a._m.includes(t) ? 1 : 0);
+        if (!s) { ok = false; break; }
+        score += s;
+      }
+      if (ok) results.push([score, a]);
+    }
+    results.sort((x, y) => y[0] - x[0] || x[1].y.localeCompare(y[1].y));
+  }
+  shown = 0; list.innerHTML = '';
+  if (!terms.length && !fe && !ff) { count.textContent = ''; list.innerHTML = '<div class="empty">전체 ' + IDX.length + '개 기사에서 찾습니다.<br>검색어를 입력하거나 판본·분야를 고르세요.</div>'; return; }
+  count.innerHTML = results.length ? results.length + '개 기사 · <b>정렬:</b> ' + (terms.length
+    ? '관련도 높은 순 (검색어 위치 점수: 제목 10 · 핵심어 6 · 한 줄 요약/쓰임새 4 · 요약 1) → 같은 점수는 연도 이른 순 → 슬라이드 순'
+    : '연도 이른 순 → 슬라이드 순') : '';
+  if (!results.length) { list.innerHTML = '<div class="empty">찾은 기사가 없습니다. 다른 말로 찾아 보세요.</div>'; return; }
+  more(terms);
+}
+function more(terms) {
+  terms = terms || q.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const old = $('.more'); if (old) old.remove();
+  const frag = document.createDocumentFragment();
+  results.slice(shown, shown + PAGE).forEach(([score, a], k) => {
+    const rank = shown + k + 1;
+    const c = document.createElement('a');
+    c.className = 'card'; c.href = encodeURI(a.f) + '#slide-' + a.s; c.target = '_blank'; c.rel = 'noopener';
+    const edName = a.f.replace('NASA_Spinoff_', '').replace('_정리.html', '').replace('_', '–');
+    const inMain = terms.every(t => a._t.includes(t) || a._k.includes(t) || a._l.includes(t));
+    const sn = !inMain && terms.length ? snippet(a.m, terms.find(t => !a._t.includes(t) && !a._l.includes(t)) || terms[0]) : '';
+    c.innerHTML = '<div class="meta"><span class="rank">' + rank + '위' + (terms.length ? ' · 관련도 ' + score : '') + '</span><span>' + esc(a.y) + '</span><span>' + esc(a.fld) + '</span><span class="ed">' + edName + ' 판본 · 슬라이드 ' + a.s + '</span></div>' +
+      '<div class="t">' + hl(a.t, terms) + '</div>' + (a.e ? '<div class="e">' + hl(a.e, terms) + '</div>' : '') +
+      '<div class="l">' + hl(a.l, terms) + '</div>' + (sn ? '<div class="sn">요약 중: ' + hl(sn, terms) + '</div>' : '');
+    frag.appendChild(c);
+  });
+  list.appendChild(frag);
+  shown += PAGE;
+  if (shown < results.length) {
+    const b = document.createElement('button'); b.className = 'more'; b.textContent = '더 보기 (' + (results.length - shown) + '개 남음)';
+    b.onclick = () => more(); list.appendChild(b);
+  }
+}
+// random search: one feature keyword from the articles allowed by the current edition/field filters,
+// so the search always finds at least the article it came from
+$('#rand').onclick = () => {
+  const pool = [];
+  for (const a of IDX) {
+    if (ed.value && a.f !== ed.value) continue;
+    if (fld.value && a.fld !== fld.value) continue;
+    for (const k of a.k || []) {
+      const w = k.trim();
+      // one-word keywords only: a two-word pick is searched as two AND terms and usually finds just one article
+      if (w.length >= 2 && w.length <= 8 && !/\s/.test(w) && /[가-힣]/.test(w) && w !== q.value.trim()) pool.push(w);
+    }
+  }
+  if (!pool.length) return;
+  q.value = pool[Math.floor(Math.random() * pool.length)];
+  run();
+  q.focus();
+};
+let timer;
+q.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(run, 150); });
+ed.onchange = run; fld.onchange = run;
+const p = new URLSearchParams(location.search).get('q');
+if (p) q.value = p;
+run();
+</script>
+</body>
+</html>
