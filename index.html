@@ -35,7 +35,15 @@ main{padding:18px 24px 60px;max-width:1200px;margin:0 auto}
 mark{background:var(--hit);color:var(--accent);border-radius:4px;padding:0 2px}
 .more{display:block;margin:10px auto;font-size:18px;padding:10px 24px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
 .empty{color:var(--muted);font-size:20px;text-align:center;margin-top:60px;line-height:1.7}
-@media (max-width:640px){header,main{padding-left:16px;padding-right:16px}h1{font-size:22px}#q{font-size:20px}.t{font-size:20px}}
+#eds{margin:4px 0 18px}
+#eds h2{font-size:18px;color:var(--muted);font-weight:400;margin:0 0 8px}
+#eds .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+#eds a{display:block;text-decoration:none;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:center;transition:border-color .15s,transform .15s}
+#eds a:hover,#eds a:focus{border-color:var(--accent);transform:translateY(-1px);outline:none}
+#eds b{display:block;font-size:20px;color:var(--accent)}
+#eds span{font-size:14px;color:var(--muted)}
+@media (max-width:900px){#eds .grid{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:640px){header,main{padding-left:16px;padding-right:16px}h1{font-size:22px}#q{font-size:20px}.t{font-size:20px}#eds .grid{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -51,6 +59,7 @@ mark{background:var(--hit);color:var(--accent);border-radius:4px;padding:0 2px}
     <span id="examples"></span></div>
 </header>
 <main>
+  <nav id="eds" aria-label="통합판 바로 열기"><h2>통합판 바로 열기 · 누르면 새 탭에서 슬라이드가 열립니다</h2><div class="grid"></div></nav>
   <div id="count"></div>
   <div id="list"></div>
 </main>
@@ -70,7 +79,14 @@ IDX.forEach(a => {
   a._m = (a.m || '').toLowerCase();
 });
 const editions = [...new Set(IDX.map(a => a.f))].sort();
-editions.forEach(f => ed.add(new Option(f.replace('NASA_Spinoff_', '').replace('_정리.html', '').replace('_', '–') + '년', f)));
+editions.forEach(f => {
+  const name = f.replace('NASA_Spinoff_', '').replace('_정리.html', '').replace('_', '–');
+  ed.add(new Option(name + '년', f));
+  const a = document.createElement('a');
+  a.href = encodeURI(f); a.target = '_blank'; a.rel = 'noopener';
+  a.innerHTML = '<b>' + name + '</b><span>기사 ' + IDX.filter(x => x.f === f).length + '개</span>';
+  $('#eds .grid').appendChild(a);
+});
 [...new Set(IDX.map(a => a.fld))].filter(Boolean).sort().forEach(x => fld.add(new Option(x, x)));
 ['태양열', '의료', '위성', '소방', '로봇', '배터리', '농업', '단열'].forEach(w => {
   const b = document.createElement('button'); b.textContent = w; b.onclick = () => { q.value = w; run(); };
